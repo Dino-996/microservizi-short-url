@@ -34,15 +34,15 @@ app.get("/api/shorturl/:short", function (req, res) {
 
 app.post('/api/shorturl', function (req, res) {
   const url_input = req.body.url;
-  const isEmailValida = (email) => { const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; return regex.test(email); }
-
-  if (!isEmailValida(url_input)) {
-    res.json({ error: 'invalid url' });
-    return;
-  }
+  const isUrlValida = (email) => { const regex = /^https?:\/\/[\w.-]+\.[a-z]{2,}(\/.*)?$/i; return regex.test(email); }
 
   if (!url_input) {
     res.status(404).json({ error: 'not found' })
+  }
+
+  if (!isUrlValida(url_input)) {
+    res.json({ error: 'invalid url' });
+    return;
   }
 
   urls.forEach(url => {
