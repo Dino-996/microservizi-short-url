@@ -10,15 +10,48 @@ app.use(cors());
 
 app.use('/public', express.static(`${process.cwd()}/public`));
 
-app.get('/', function(req, res) {
+app.use(express.urlencoded({ extended: true }));
+
+app.get('/', function (req, res) {
   res.sendFile(process.cwd() + '/views/index.html');
 });
 
-// Your first API endpoint
-app.get('/api/hello', function(req, res) {
-  res.json({ greeting: 'hello API' });
+const urls = [];
+let counter = 1;
+
+app.get("/api/shorturl/:short", function (req, res) {
+  let short_param = req.params.short;
+
+  urls.forEach(url => {
+    if (parseInt(url.short_url) === parseInt(short_param)) {
+      res.redirect(url.original_url);
+      return;
+    }
+  });
+
+  res.json({ error: "No short URL found for the given input" });
 });
 
-app.listen(port, function() {
+app.post('/api/shorturl', function (req, res) {
+  const url_input = req.body.url;
+
+  if (!url_input) {
+    res.status(404).json({ error: 'not found' })
+  }
+
+  urls.forEach(url => {
+    if (url.original_url === url_input) {
+      res.json({ original_url: url.url_input, short_url: url.short_url });
+      return;
+    }
+  });
+
+  const short_url = counter++;
+  urls.push({ original_url: url_input, short_url: short_url });
+
+  res.json({ original_url: url_input, short_url: short_url });
+});
+
+app.listen(port, function () {
   console.log(`Listening on port ${port}`);
 });
