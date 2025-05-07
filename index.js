@@ -2,11 +2,18 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const app = express();
+const { MongoClient } = require('mongodb');
+const urlparser = require('url');
+const dns = require('dns');
 
-// Basic Configuration
+const client = new MongoClient(process.env.MONGO_URI);
+const db = client.db('urlshorted');
+const urls = db.collection('urls');
+
 const port = process.env.PORT || 3000;
 
 app.use(cors());
+app.use(express.json());
 app.use('/public', express.static(`${process.cwd()}/public`));
 app.use(express.urlencoded({ extended: true }));
 
@@ -14,53 +21,34 @@ app.get('/', function (req, res) {
   res.sendFile(process.cwd() + '/views/index.html');
 });
 
-// Storage
-const urls = [];
-let counter = 1;
+app.post("/api/shorturl", function (req, res) {
+  console.log(req.body);
+  const url = req.body.url;
+  const dnslookup = dns.lookup(urlparser.parse(url).hostname,
+    async (err, address) => {
+      if (!address) {
+        res.json({ error: 'Invalid URL' });
+      } else {
+        const urlCount = await urls.countDocuments({});
 
-// GET short URL
-app.get("/api/shorturl/:short", function (req, res) {
-  const shortParam = parseInt(req.params.short);
-  const found = urls.find(url => url.short_url === shortParam);
+        const urlDoc = {
+          url,
+          short_url: urlCount
+        }
 
-  if (found) {
-    return res.redirect(found.original_url);
-  } else {
-    return res.json({ error: "No short URL found for the given input" });
-  }
+        const result = await urls.insertOne(urlDoc);
+        console.log(result);
+        res.json({ original_url: url, short_url: urlCount });
+      }
+    });
 });
 
-// POST new URL
-app.post('/api/shorturl', function (req, res) {
-  const url_input = req.body.url;
-
-  const isUrlValid = (url) => {
-    const regex = /^https?:\/\/[\w.-]+\.[a-z]{2,}(\/.*)?$/i;
-    return regex.test(url);
-  }
-
-  if (!url_input) {
-    return res.status(400).json({ error: 'not found' });
-  }
-
-  if (!isUrlValid(url_input)) {
-    return res.json({ error: 'invalid url' });
-  }
-
-  // Check if URL already exists
-  const existing = urls.find(url => url.original_url === url_input);
-  if (existing) {
-    return res.json({ original_url: existing.original_url, short_url: existing.short_url });
-  }
-
-  // Save new URL
-  const short_url = counter++;
-  urls.push({ original_url: url_input, short_url: short_url });
-
-  res.json({ original_url: url_input, short_url: short_url });
+app.get('api/shorturl/:short_url', async function(req, res) {
+  const shorturl = req.params.short_url;
+  const urlDoc = await urls.findOne({ short_url: +shorturl });
+  res.redirect(urlDoc.url);
 });
 
-// Start
 app.listen(port, function () {
   console.log(`Listening on port ${port}`);
 });
